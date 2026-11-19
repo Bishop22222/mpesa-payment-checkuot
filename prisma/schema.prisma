@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MERCHANT
+  ADMIN
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum PaymentLinkStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole @default(MERCHANT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  merchants Merchant[]
+}
+
+model Merchant {
+  id                         String   @id @default(uuid())
+  businessName               String
+  businessEmail              String
+  phoneNumber                String?
+  shortcode                  String?
+  darajaCredentialsEncrypted String?  @db.Text
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  paymentLinks PaymentLink[]
+  transactions Transaction[]
+  apiKeys      ApiKey[]
+  webhooks     Webhook[]
+}
+
+model PaymentLink {
+  id          String            @id @default(uuid())
+  title       String
+  description String?
+  amount      Decimal           @db.Decimal(12, 2)
+  currency    String            @default("KES")
+  slug        String            @unique
+  status      PaymentLinkStatus @default(ACTIVE)
+  createdAt   DateTime          @default(now())
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                String            @id @default(uuid())
+  amount            Decimal           @db.Decimal(12, 2)
+  phoneNumber       String
+  status            TransactionStatus @default(PENDING)
+  merchantRequestId String?
+  checkoutRequestId String?           @unique
+  mpesaReceipt      String?           @unique
+  resultCode        String?
+  resultDescription String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+
+  paymentLinkId String?
+  paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id])
+}
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  name      String
+  keyHash   String    @unique
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+}
+
+model Webhook {
+  id              String   @id @default(uuid())
+  url             String
+  secretEncrypted String   @db.Text
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+}
